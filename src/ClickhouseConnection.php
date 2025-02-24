@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Patoui\LaravelClickhouse;
 
+use ClickHouseDB\Client;
 use Closure;
 use Generator;
 use Illuminate\Database\Connection as BaseConnection;
@@ -11,12 +12,11 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\Processors\Processor;
 use InvalidArgumentException;
 use RuntimeException;
-use SeasClick;
 use Throwable;
 
 class ClickhouseConnection extends BaseConnection
 {
-    /** @var SeasClick */
+    /** @var Client */
     private $db;
 
     /**
@@ -26,7 +26,7 @@ class ClickhouseConnection extends BaseConnection
     {
         $this->config = $config;
 
-        $this->db = new SeasClick($config);
+        $this->db = new Client($config);
 
         $this->useDefaultPostProcessor();
         $this->useDefaultSchemaGrammar();
@@ -34,9 +34,9 @@ class ClickhouseConnection extends BaseConnection
     }
 
     /**
-     * Get SeasClick client
+     * Get \ClickHouseDB\Client client
      */
-    public function getClient(): SeasClick
+    public function getClient(): Client
     {
         return $this->db;
     }
@@ -79,11 +79,11 @@ class ClickhouseConnection extends BaseConnection
      * @param  bool  $useReadPdo
      * @return mixed
      */
-    public function selectOne($query, $bindings = [], $useReadPdo = true)
+    public function selectOne($query, $bindings = [], $useReadPdo = true): mixed
     {
         $records = $this->db->select($query, $bindings);
 
-        return array_shift($records);
+        return $records->rows();
     }
 
     /**
@@ -95,7 +95,7 @@ class ClickhouseConnection extends BaseConnection
      */
     public function select($query, $bindings = [], $useReadPdo = true): array
     {
-        return $this->db->select($query, $bindings);
+        return $this->db->select($query, $bindings)->rows();
     }
 
     /**
@@ -118,9 +118,7 @@ class ClickhouseConnection extends BaseConnection
      */
     public function insert($query, $bindings = []): bool
     {
-        [$keys, $values] = $this->parseBindings($bindings);
-
-        return $this->db->insert($query, $keys, $values);
+        return $this->db->write($query, $bindings)->valid();
     }
 
     /**
@@ -132,7 +130,7 @@ class ClickhouseConnection extends BaseConnection
     public function update($query, $bindings = []): int
     {
         // TODO: remove hack and properly determine how many records will be updated
-        return (int) $this->db->execute($query, $bindings);
+        return (int) $this->db->write($query, $bindings);
     }
 
     /**
@@ -144,7 +142,7 @@ class ClickhouseConnection extends BaseConnection
     public function delete($query, $bindings = []): int
     {
         // TODO: determine how many records will be deleted
-        return (int) $this->db->execute($query, $bindings);
+        return (int) $this->db->write($query, $bindings);
     }
 
     /**
@@ -155,7 +153,7 @@ class ClickhouseConnection extends BaseConnection
      */
     public function statement($query, $bindings = []): bool
     {
-        return $this->db->execute($query, $bindings);
+        return $this->db->write($query, $bindings)->valid();
     }
 
     /**
@@ -176,7 +174,7 @@ class ClickhouseConnection extends BaseConnection
      */
     public function unprepared($query): bool
     {
-        return $this->db->execute($query);
+        return $this->db->write($query)->valid();
     }
 
     /**
